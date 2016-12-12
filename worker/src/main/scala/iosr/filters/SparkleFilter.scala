@@ -3,14 +3,14 @@ package iosr.filters
 import akka.actor.Actor
 import com.sksamuel.scrimage.Image
 import com.sksamuel.scrimage.filter.{ SparkleFilter => ScrimageSparkleFilter }
-import iosr.filters.Messages.{ DoneMessage, SparkleMessage }
+import iosr.filters.Messages.{ Response, SparkleCommand }
 
 class SparkleFilter extends Actor {
   override def receive: Receive = {
-    case SparkleMessage(imageBytes, params) =>
+    case SparkleCommand(imageBytes, params) =>
       val senderActor = sender()
       val image = Image(imageBytes)
-      senderActor ! DoneMessage(
+      senderActor ! Response(
         image.filter(ScrimageSparkleFilter(
           rays = params.rays,
           radius = params.radius,

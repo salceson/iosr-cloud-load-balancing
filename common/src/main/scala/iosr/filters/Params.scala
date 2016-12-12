@@ -1,19 +1,22 @@
 package iosr.filters
 
-sealed trait Params {
-  def filterName: String
-}
+sealed trait RotationDirection
 
-case class ScaleParams(width: Int, height: Int, preserveRatio: Boolean) extends Params {
-  override def filterName = "scale"
-}
+case object RotateLeft extends RotationDirection
 
-case class TwirlParams(radius: Int) extends Params {
-  override def filterName: String = "twirl"
-}
+case object RotateRight extends RotationDirection
+
+sealed trait Params
+
+case class ScaleParams(width: Int, height: Int, preserveRatio: Boolean) extends Params
+
+case class TwirlParams(radius: Int) extends Params
 
 case class SparkleParams(rays: Int = 50,
                          radius: Int = 25,
-                         amount: Int = 50) extends Params {
-  override def filterName: String = "sparkle"
-}
+                         amount: Int = 50)
+  extends Params
+
+case class RotateParams(direction: RotationDirection) extends Params
+
+case class ContrastParams(contrast: Double) extends Params
