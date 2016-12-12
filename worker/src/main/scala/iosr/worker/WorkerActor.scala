@@ -36,6 +36,8 @@ class WorkerActor extends FSM[WorkerState, WorkerData] {
     case Event(CheckForRequests, rd@RequestsData((request, actor) :: rest, _, router)) =>
       router.route(request, actor)
       stay using rd.copy(requestsWithActors = rest)
+    case Event(CheckForRequests, RequestsData(Nil, _, _)) =>
+      stay
     case Event(Terminated(oldRoutee), rd@RequestsData(_, _, router)) =>
       val newRouter = handleTerminatedRoutee(oldRoutee, router)
       stay using rd.copy(router = newRouter)
