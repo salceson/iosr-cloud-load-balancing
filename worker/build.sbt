@@ -1,4 +1,4 @@
-name := "scale-filter"
+name := "worker"
 
 version := "1.0"
 

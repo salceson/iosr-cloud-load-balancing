@@ -6,8 +6,15 @@ version := "1.0"
 
 scalaVersion := "2.11.8"
 
-lazy val filters = (project in file("filters")).settings(commonSettings)
+lazy val common = (project in file("common"))
+  .settings(commonSettings)
 
-lazy val gui = (project in file("gui")).settings(commonSettings)
+lazy val worker = (project in file("worker"))
+  .settings(commonSettings)
+  .dependsOn(common)
 
-lazy val IOSRCloudLoadBalancing = (project in file(".")).aggregate(filters, gui)
+lazy val gui = (project in file("gui"))
+  .settings(commonSettings)
+  .dependsOn(common)
+
+lazy val IOSRCloudLoadBalancing = (project in file(".")).aggregate(common, worker, gui)
