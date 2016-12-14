@@ -2,7 +2,7 @@ package iosr.filters
 
 import akka.actor.Actor
 import com.sksamuel.scrimage.Image
-import iosr.filters.Messages.{ Response, ScaleCommand }
+import iosr.Messages.{Response, ScaleCommand}
 
 class ScaleFilter extends Actor {
   override def receive: Receive = {

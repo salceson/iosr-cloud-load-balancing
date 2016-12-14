@@ -3,7 +3,7 @@ package iosr.worker
 import akka.actor.{Actor, Props}
 import akka.pattern.ask
 import akka.util.Timeout
-import iosr.filters.Messages._
+import iosr.Messages._
 import iosr.filters._
 
 import scala.concurrent.Await

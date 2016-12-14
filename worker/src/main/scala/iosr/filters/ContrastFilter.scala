@@ -3,7 +3,7 @@ package iosr.filters
 import akka.actor.Actor
 import com.sksamuel.scrimage.Image
 import com.sksamuel.scrimage.filter.{ContrastFilter => ScrimageContrastFilter}
-import iosr.filters.Messages.{ContrastCommand, Response}
+import iosr.Messages.{ContrastCommand, Response}
 
 class ContrastFilter extends Actor {
   override def receive: Receive = {
