@@ -1,6 +1,6 @@
 package iosr.worker
 
-import akka.actor.{ActorRef, ActorSelection, Cancellable, LoggingFSM, Props, Terminated}
+import akka.actor.{ActorPath, ActorRef, ActorSelection, Cancellable, LoggingFSM, Props, Terminated}
 import akka.routing.{ActorRefRoutee, RoundRobinRoutingLogic, Routee, Router}
 import iosr.Messages._
 import iosr.worker.WorkerActor._
@@ -14,8 +14,8 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
   import context.dispatcher
 
   when(Initial) {
-    case Event(Startup(supervisorAddress), EmptyData) =>
-      val supervisor = context.actorSelection(s"akka://$supervisorAddress/user/SupervisorActor")
+    case Event(Startup(supervisorPath), EmptyData) =>
+      val supervisor = context.actorSelection(supervisorPath)
       supervisor ! RegisterWorker
       val router = initRouter(5)
       goto(Registering) using InitialData(router, supervisor)
@@ -30,14 +30,7 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
       stay using id.copy(router = newRouter)
   }
 
-  when(Running) {
-    case Event(r: Request, rd@RequestsData(requestsWithActors, _, _, _)) =>
-      val senderActor = sender()
-      stay using rd.copy(requestsWithActors = requestsWithActors.enqueue((r, senderActor)))
-    case Event(CheckForRequests, rd@RequestsData(requestsWithActors, _, router, _)) if requestsWithActors.nonEmpty =>
-      val ((request, actor), newQueue) = requestsWithActors.dequeue
-      router.route(request, actor)
-      stay using rd.copy(requestsWithActors = newQueue)
+  when(Running)(handleRequests orElse {
     case Event(CheckForRequests, _) =>
       stay
     case Event(Terminated(oldRoutee), rd@RequestsData(_, _, router, _)) =>
@@ -46,24 +39,23 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
     case Event(Deregister, RequestsData(_, _, _, supervisor)) =>
       supervisor ! DeregisterWorker
       goto(Deregistering)
-  }
+  })
 
-  when(Deregistering) {
-    case Event(r: Request, rd@RequestsData(requestsWithActors, _, _, _)) =>
-      val senderActor = sender()
-      stay using rd.copy(requestsWithActors = requestsWithActors.enqueue((r, senderActor)))
-    case Event(CheckForRequests, rd@RequestsData(requestsWithActors, _, router, _)) if requestsWithActors.nonEmpty =>
-      val ((request, actor), newQueue) = requestsWithActors.dequeue
-      router.route(request, actor)
-      stay using rd.copy(requestsWithActors = newQueue)
+  when(DeregisteringWithRequests)(handleRequests orElse {
     case Event(CheckForRequests, RequestsData(_, requestsCancellable, _, _)) =>
       requestsCancellable.cancel()
-      context.system.scheduler.scheduleOnce(1 second, self, TerminateNow)
-      goto(Terminating) using EmptyData
+      stay using EmptyData
     case Event(Terminated(oldRoutee), rd@RequestsData(_, _, router, _)) =>
       val newRouter = handleTerminatedRoutee(oldRoutee, router)
       stay using rd.copy(router = newRouter)
-  }
+//    case Event(DeregisterWorkerAck, rd@RequestsData()
+
+  })
+
+//  when(Deregistering) {
+//    case Event(DeregisterWorkerAck, _) =>
+//
+//  }
 
   when(Terminating) {
     case Event(TerminateNow, EmptyData) =>
@@ -72,6 +64,22 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
   }
 
   startWith(Initial, EmptyData)
+
+  private def handleDeregisteringAck: StateFunction = {
+    case Event(DeregisterWorkerAck, _) =>
+      context.system.scheduler.scheduleOnce(1 second, self, TerminateNow)
+      goto(Terminating)
+  }
+
+  private def handleRequests: StateFunction = {
+    case Event(r: Request, rd@RequestsData(requestsWithActors, _, _, _)) =>
+      val senderActor = sender()
+      stay using rd.copy(requestsWithActors = requestsWithActors.enqueue((r, senderActor)))
+    case Event(CheckForRequests, rd@RequestsData(requestsWithActors, _, router, _)) if requestsWithActors.nonEmpty =>
+      val ((request, actor), newQueue) = requestsWithActors.dequeue
+      router.route(request, actor)
+      stay using rd.copy(requestsWithActors = newQueue)
+  }
 
   private def handleTerminatedRoutee(routee: ActorRef, router: Router) = {
     val routerWithRemovedTerminatedRoutee = router.removeRoutee(routee)
@@ -107,6 +115,12 @@ object WorkerActor {
                           supervisor: ActorSelection)
     extends WorkerData
 
+  case class DeregisteredRequestsData(requestsWithActors: Queue[(Request, ActorRef)],
+                                      requestsCancellable: Cancellable,
+                                      router: Router,
+                                      supervisor: ActorSelection)
+    extends WorkerData
+
   //State
 
   sealed trait WorkerState
@@ -117,13 +131,15 @@ object WorkerActor {
 
   case object Running extends WorkerState
 
+  case object DeregisteringWithRequests extends WorkerState
+
   case object Deregistering extends WorkerState
 
   case object Terminating extends WorkerState
 
   //Messages
 
-  case class Startup(supervisorAddress: String)
+  case class Startup(supervisorPath: ActorPath)
 
   case object CheckForRequests
 
