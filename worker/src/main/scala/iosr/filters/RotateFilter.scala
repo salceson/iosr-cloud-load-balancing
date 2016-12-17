@@ -2,7 +2,7 @@ package iosr.filters
 
 import akka.actor.Actor
 import com.sksamuel.scrimage.Image
-import iosr.Messages.{Response, RotateCommand}
+import iosr.Messages.{FilterDone, RotateCommand}
 
 class RotateFilter extends Actor {
   override def receive: Receive = {
@@ -13,6 +13,6 @@ class RotateFilter extends Actor {
         case RotateLeft => image.rotateLeft
         case RotateRight => image.rotateRight
       }
-      senderActor ! Response(rotated.bytes)
+      senderActor ! FilterDone(rotated.bytes)
   }
 }
