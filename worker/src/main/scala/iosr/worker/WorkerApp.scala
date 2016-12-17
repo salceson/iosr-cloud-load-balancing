@@ -11,10 +11,10 @@ object WorkerApp extends App {
   val workerActor = system.actorOf(Props[WorkerActor], "workerActor")
 
   val supervisorAddress = config.getString("supervisor.address")
-  val supervisorPath = ActorPath.fromString(s"akka://$supervisorAddress/user/supervisorActor")
+  val supervisorPath = ActorPath.fromString(s"akka://Supervisor@$supervisorAddress/user/supervisorActor")
 
   val monitoringAddress = config.getString("monitoring.address")
-  val monitoringPath = ActorPath.fromString(s"akka://$monitoringAddress/user/monitoringActor")
+  val monitoringPath = ActorPath.fromString(s"akka://Monitoring@$monitoringAddress/user/monitoringActor")
 
   workerActor ! Startup(supervisorPath, monitoringPath)
 }

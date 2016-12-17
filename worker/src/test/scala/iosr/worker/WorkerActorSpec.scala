@@ -31,7 +31,7 @@ abstract class WithSetup(implicit system: ActorSystem) extends Scope {
   }
 }
 
-class WorkerActorSpec extends TestKit(ActorSystem()) with ImplicitSender with SpecLike with AfterAll {
+class WorkerActorSpec extends TestKit(ActorSystem("Worker")) with ImplicitSender with SpecLike with AfterAll {
   private val testImageURI = getClass.getClassLoader.getResource("test.jpg").toURI
   private val simpleResultURI = getClass.getClassLoader.getResource("simple-result.png").toURI
   private val testImage = Files.readAllBytes(Paths.get(testImageURI))
