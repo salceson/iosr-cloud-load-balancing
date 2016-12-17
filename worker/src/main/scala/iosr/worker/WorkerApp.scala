@@ -7,8 +7,14 @@ import iosr.worker.WorkerActor.Startup
 object WorkerApp extends App {
   val config = ConfigFactory.load()
   val system = ActorSystem("WorkerApp", config)
-  val workerActor = system.actorOf(Props[WorkerActor])
+
+  val workerActor = system.actorOf(Props[WorkerActor], "workerActor")
+
   val supervisorAddress = config.getString("supervisor.address")
   val supervisorPath = ActorPath.fromString(s"akka://$supervisorAddress/user/supervisorActor")
-  workerActor ! Startup(supervisorPath)
+
+  val monitoringAddress = config.getString("monitoring.address")
+  val monitoringPath = ActorPath.fromString(s"akka://$monitoringAddress/user/monitoringActor")
+
+  workerActor ! Startup(supervisorPath, monitoringPath)
 }

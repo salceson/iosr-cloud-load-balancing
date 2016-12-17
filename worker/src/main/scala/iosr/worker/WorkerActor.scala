@@ -14,18 +14,19 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
   import context.dispatcher
 
   when(Initial) {
-    case Event(Startup(supervisorPath), EmptyData) =>
+    case Event(Startup(supervisorPath, monitoringPath), EmptyData) =>
       val supervisor = context.actorSelection(supervisorPath)
+      val monitoring = context.actorSelection(monitoringPath)
       supervisor ! RegisterWorker
       val router = initRouter(5)
-      goto(Registering) using InitialData(router, supervisor)
+      goto(Registering) using InitialData(router, supervisor, monitoring)
   }
 
   when(Registering) {
-    case Event(RegisterWorkerAck, InitialData(router, supervisor)) =>
+    case Event(RegisterWorkerAck, InitialData(router, supervisor, monitoring)) =>
       val requestsCancellable = context.system.scheduler.schedule(10 millis, 10 millis, self, CheckForRequests)
-      goto(Running) using RequestsData(Queue.empty, requestsCancellable, router, supervisor)
-    case Event(Terminated(oldRoutee), id@InitialData(router, _)) =>
+      goto(Running) using RequestsData(Queue.empty, requestsCancellable, router, supervisor, monitoring)
+    case Event(Terminated(oldRoutee), id@InitialData(router, _, _)) =>
       val newRouter = handleTerminatedRoutee(oldRoutee, router)
       stay using id.copy(router = newRouter)
   }
@@ -33,49 +34,47 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
   when(Running)(handleRequests orElse {
     case Event(CheckForRequests, _) =>
       stay
-    case Event(Terminated(oldRoutee), rd@RequestsData(_, _, router, _)) =>
+    case Event(Terminated(oldRoutee), rd@RequestsData(_, _, router, _, _)) =>
       val newRouter = handleTerminatedRoutee(oldRoutee, router)
       stay using rd.copy(router = newRouter)
-    case Event(Deregister, RequestsData(_, _, _, supervisor)) =>
+    case Event(Deregister, RequestsData(_, _, _, supervisor, _)) =>
       supervisor ! DeregisterWorker
       goto(Deregistering)
   })
 
-  when(DeregisteringWithRequests)(handleRequests orElse {
-    case Event(CheckForRequests, RequestsData(_, requestsCancellable, _, _)) =>
-      requestsCancellable.cancel()
-      stay using EmptyData
-    case Event(Terminated(oldRoutee), rd@RequestsData(_, _, router, _)) =>
+  when(Deregistering)(handleRequests orElse {
+    case Event(Terminated(oldRoutee), rd@RequestsData(_, _, router, _, _)) =>
       val newRouter = handleTerminatedRoutee(oldRoutee, router)
       stay using rd.copy(router = newRouter)
-//    case Event(DeregisterWorkerAck, rd@RequestsData()
-
+    case Event(DeregisterWorkerAck, RequestsData(requestsWithActors, requestsCancellable, _, _, monitoring)) if requestsWithActors.isEmpty =>
+      requestsCancellable.cancel()
+      context.system.scheduler.scheduleOnce(1 second, self, TerminateNow)
+      goto(Terminating) using TerminatingData(monitoring)
+    case Event(DeregisterWorkerAck, _) =>
+      goto(Deregistered)
   })
 
-//  when(Deregistering) {
-//    case Event(DeregisterWorkerAck, _) =>
-//
-//  }
+  when(Deregistered)(handleRequests orElse {
+    case Event(CheckForRequests, RequestsData(_, requestsCancellable, _, _, monitoring)) =>
+      requestsCancellable.cancel()
+      context.system.scheduler.scheduleOnce(1 second, self, TerminateNow)
+      goto(Terminating) using TerminatingData(monitoring)
+  })
 
   when(Terminating) {
-    case Event(TerminateNow, EmptyData) =>
+    case Event(TerminateNow, TerminatingData(monitoring)) =>
+      monitoring ! TerminateWorker
       context.system.terminate()
       stop()
   }
 
   startWith(Initial, EmptyData)
 
-  private def handleDeregisteringAck: StateFunction = {
-    case Event(DeregisterWorkerAck, _) =>
-      context.system.scheduler.scheduleOnce(1 second, self, TerminateNow)
-      goto(Terminating)
-  }
-
   private def handleRequests: StateFunction = {
-    case Event(r: Request, rd@RequestsData(requestsWithActors, _, _, _)) =>
+    case Event(r: Request, rd@RequestsData(requestsWithActors, _, _, _, _)) =>
       val senderActor = sender()
       stay using rd.copy(requestsWithActors = requestsWithActors.enqueue((r, senderActor)))
-    case Event(CheckForRequests, rd@RequestsData(requestsWithActors, _, router, _)) if requestsWithActors.nonEmpty =>
+    case Event(CheckForRequests, rd@RequestsData(requestsWithActors, _, router, _, _)) if requestsWithActors.nonEmpty =>
       val ((request, actor), newQueue) = requestsWithActors.dequeue
       router.route(request, actor)
       stay using rd.copy(requestsWithActors = newQueue)
@@ -107,19 +106,19 @@ object WorkerActor {
 
   case object EmptyData extends WorkerData
 
-  case class InitialData(router: Router, supervisor: ActorSelection) extends WorkerData
+  case class InitialData(router: Router,
+                         supervisor: ActorSelection,
+                         monitoring: ActorSelection)
+    extends WorkerData
 
   case class RequestsData(requestsWithActors: Queue[(Request, ActorRef)],
                           requestsCancellable: Cancellable,
                           router: Router,
-                          supervisor: ActorSelection)
+                          supervisor: ActorSelection,
+                          monitoring: ActorSelection)
     extends WorkerData
 
-  case class DeregisteredRequestsData(requestsWithActors: Queue[(Request, ActorRef)],
-                                      requestsCancellable: Cancellable,
-                                      router: Router,
-                                      supervisor: ActorSelection)
-    extends WorkerData
+  case class TerminatingData(monitoring: ActorSelection) extends WorkerData
 
   //State
 
@@ -131,15 +130,15 @@ object WorkerActor {
 
   case object Running extends WorkerState
 
-  case object DeregisteringWithRequests extends WorkerState
-
   case object Deregistering extends WorkerState
+
+  case object Deregistered extends WorkerState
 
   case object Terminating extends WorkerState
 
   //Messages
 
-  case class Startup(supervisorPath: ActorPath)
+  case class Startup(supervisorPath: ActorPath, monitoringPath: ActorPath)
 
   case object CheckForRequests
 

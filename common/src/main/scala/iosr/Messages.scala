@@ -36,4 +36,10 @@ object Messages {
 
   case object Deregister
 
+  // Monitoring <=> Worker
+
+  case object TerminateWorker
+
+  case class LoadData(numOfRequests: Long)
+
 }

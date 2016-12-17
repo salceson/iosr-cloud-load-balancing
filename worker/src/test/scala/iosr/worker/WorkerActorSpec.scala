@@ -20,7 +20,7 @@ abstract class WithSetup(implicit system: ActorSystem) extends Scope {
   val duration = 1 second
 
   def sendStartup(): Unit = {
-    fsm ! Startup(probePath)
+    fsm ! Startup(probePath, probePath)
   }
 
   def registerWorker(): Unit = {
