@@ -44,13 +44,13 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
 
   when(Deregistering)(handleRequests orElse {
     case Event(DeregisterWorkerAck, RunningData(_, monitoring)) =>
-      context.system.scheduler.scheduleOnce(1 second, self, TerminateNow)
-      goto(Terminating) using TerminatingData(monitoring)
+      monitoring ! TerminateWorker
+      context.system.scheduler.scheduleOnce(1 minute, self, TerminateNow)
+      goto(Terminating) using EmptyData
   })
 
   when(Terminating) {
-    case Event(TerminateNow, TerminatingData(monitoring)) =>
-      monitoring ! TerminateWorker
+    case Event(TerminateNow, EmptyData) =>
       context.system.terminate()
       stop()
   }
@@ -113,8 +113,6 @@ object WorkerActor {
   case object EmptyData extends WorkerData
 
   case class RunningData(supervisor: ActorSelection, monitoring: ActorSelection) extends WorkerData
-
-  case class TerminatingData(monitoring: ActorSelection) extends WorkerData
 
   //State
 

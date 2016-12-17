@@ -12,9 +12,10 @@ import org.specs2.specification.{AfterAll, Scope}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.Random
 
 abstract class WithSetup(implicit system: ActorSystem) extends Scope {
-  val worker = TestFSMRef(new WorkerActor)
+  val worker = TestFSMRef(new WorkerActor, s"worker-${Random.nextInt}")
   val probe = TestProbe()
   val probePath = probe.ref.path
   val duration = 2 seconds
@@ -35,6 +36,8 @@ class WorkerActorSpec extends TestKit(ActorSystem()) with ImplicitSender with Sp
   private val simpleResultURI = getClass.getClassLoader.getResource("simple-result.png").toURI
   private val testImage = Files.readAllBytes(Paths.get(testImageURI))
   private val simpleResult = Files.readAllBytes(Paths.get(simpleResultURI))
+
+  sequential
 
   "Worker actor" should {
     "start in initial state and empty data" in new WithSetup {
@@ -88,12 +91,27 @@ class WorkerActorSpec extends TestKit(ActorSystem()) with ImplicitSender with Sp
       registerWorker()
       probe.send(worker, Deregister)
       probe.receiveOne(duration) mustEqual DeregisterWorker
-      probe.send(worker, Request("test", testImage, List(
+      probe.send(worker, Request("test-1", testImage, List(
         ScaleParams(1920, 1200, preserveRatio = true)
       )))
-      probe.receiveOne(duration) must beAnInstanceOf[Response]
+      probe.send(worker, Request("test-2", testImage, List(
+        ScaleParams(1920, 1200, preserveRatio = true)
+      )))
+      probe.send(worker, Request("test-3", testImage, List(
+        ScaleParams(1920, 1200, preserveRatio = true)
+      )))
+      probe.send(worker, Request("test-4", testImage, List(
+        ScaleParams(1920, 1200, preserveRatio = true)
+      )))
+      probe.send(worker, Request("test-5", testImage, List(
+        ScaleParams(1920, 1200, preserveRatio = true)
+      )))
+      val received = probe.receiveN(5, 30 seconds)
+      received foreach { msg =>
+        msg must beAnInstanceOf[Response]
+      }
       probe.send(worker, DeregisterWorkerAck)
-      probe.receiveOne(10 seconds) mustEqual TerminateWorker
+      probe.receiveOne(duration) mustEqual TerminateWorker
     }
   }
 
