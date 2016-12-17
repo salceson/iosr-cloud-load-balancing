@@ -22,8 +22,11 @@ object CommonSettings {
 
   val commonTestScalacSettings: Seq[String] = Seq("-Yrangepos")
 
+  val commonScalacSettings: Seq[String] = Seq("-Xmax-classfile-name", "78")
+
   val commonSettings: Seq[Def.Setting[_]] = Seq(
     resolvers ++= commonResolvers,
+    scalacOptions ++= commonScalacSettings,
     scalacOptions in Test ++= commonTestScalacSettings,
     libraryDependencies ++= commonDependencies
   )
