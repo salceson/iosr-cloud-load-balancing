@@ -19,7 +19,7 @@ class SupervisorActor extends Actor with ActorLogging {
       log.info(s"Deregistering worker $worker")
       router.removeRoutee(worker)
       worker ! DeregisterWorkerAck
-    case msg@Request =>
+    case msg: Request =>
       router.route(msg, sender())
   }
 

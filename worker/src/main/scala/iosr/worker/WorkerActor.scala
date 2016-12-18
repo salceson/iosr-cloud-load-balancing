@@ -28,6 +28,7 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
       val supervisor = context.actorSelection(supervisorPath)
       val monitoring = context.actorSelection(monitoringPath)
       supervisor ! RegisterWorker
+      monitoring ! RegisterWorker
       goto(Registering) using RunningData(supervisor, monitoring)
   }
 

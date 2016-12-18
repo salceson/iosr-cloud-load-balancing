@@ -13,7 +13,9 @@ object CommonSettings {
     "com.typesafe.akka" %% "akka-remote" % AkkaVersion,
 
     "com.typesafe.akka" %% "akka-testkit" % AkkaVersion % "test",
-    "org.specs2" %% "specs2-core" % "3.0" % "test"
+    "org.specs2" %% "specs2-core" % "3.0" % "test",
+
+    "com.github.docker-java" % "docker-java" % "3.0.6"
   )
 
   val commonResolvers: Seq[MavenRepository] = Seq(

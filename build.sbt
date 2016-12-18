@@ -21,4 +21,8 @@ lazy val supervisor = (project in file("supervisor"))
   .settings(commonSettings)
   .dependsOn(common)
 
-lazy val IOSRCloudLoadBalancing = (project in file(".")).aggregate(common, worker, gui, supervisor)
+lazy val monitoring = (project in file("monitoring"))
+  .settings(commonSettings)
+  .dependsOn(common)
+
+lazy val IOSRCloudLoadBalancing = (project in file(".")).aggregate(common, worker, gui, supervisor, monitoring)
