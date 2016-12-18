@@ -9,9 +9,9 @@ libraryDependencies ++= Seq(
   "com.google.code.findbugs" % "jsr305" % "2.0.3" % "provided"
 )
 
-assemblyJarName in assembly := "supervisor.jar"
+assemblyJarName in assembly := "monitoring.jar"
 
-mainClass := Some("iosr.supervisor.SupervisorApp")
+mainClass := Some("iosr.monitoring.MonitoringApp")
 
 assemblyMergeStrategy in assembly := {
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard
