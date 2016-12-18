@@ -17,10 +17,10 @@ dockerfile in docker := {
   new sbtdocker.mutable.Dockerfile {
     from("frolvlad/alpine-oraclejdk8:slim")
     copy(artifact, artifactTargetPath)
-    env("SUPERVISORADDRESS" -> "")
-    env("MONITORINGADDRESS" -> "")
-    entryPoint("sh", "-c", "java",
-      s"-Dsupervisor.address=$$SUPERVISORADDRESS -Dmonitoring.address=$$MONITORINGADDRESS -jar ${artifact.name}"
+    env("WORKERADDRESS" -> "")
+    env("SUPERVISORADDRESS" -> "supervisor:6000")
+    env("MONITORINGADDRESS" -> "monitoring:5000")
+    entryPoint("sh", "-c", s"java -Dakka.remote.netty.tcp.hostname=$$WORKERADDRESS -Dsupervisor.address=$$SUPERVISORADDRESS -Dmonitoring.address=$$MONITORINGADDRESS -jar ${artifact.name}"
     )
   }
 }

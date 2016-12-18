@@ -28,6 +28,6 @@ dockerfile in docker := {
   new sbtdocker.mutable.Dockerfile {
     from("frolvlad/alpine-oraclejdk8:slim")
     copy(artifact, artifactTargetPath)
-    entryPoint("sh", "-c", "java", s"-jar ${artifact.name}")
+    entryPoint("sh", "-c", s"java -Dakka.remote.netty.tcp.hostname=monitoring -jar ${artifact.name}")
   }
 }

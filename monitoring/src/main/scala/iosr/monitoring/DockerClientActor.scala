@@ -53,7 +53,7 @@ class DockerClientActor(config: Config) extends Actor with ActorLogging {
     val container = dockerClient.createContainerCmd(workerImageName)
       .withName(containerName)
       .withNetworkMode(dockerNetwork)
-      .withEnv(s"JAVA_OPTS=-Dakka.remote.netty.tcp.hostname=$containerName")
+      .withEnv(s"WORKERADDRESS=$containerName")
       .exec()
     dockerClient.startContainerCmd(container.getId)
   }

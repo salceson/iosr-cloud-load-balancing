@@ -34,6 +34,6 @@ dockerfile in docker := {
     from("frolvlad/alpine-oraclejdk8:slim")
     copy(artifact, artifactTargetPath)
     env("SUPERVISORADDRESS" -> "")
-    entryPoint("sh", "-c", "java", s"-Dsupervisor.address=$$SUPERVISORADDRESS -jar ${artifact.name}")
+    entryPoint("sh", "-c", s"java -Dsupervisor.address=$$SUPERVISORADDRESS -jar ${artifact.name}")
   }
 }
