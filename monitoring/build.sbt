@@ -1,7 +1,7 @@
 import sbtassembly.AssemblyKeys.assemblyOutputPath
 import sbtdocker.DockerKeys.dockerfile
 
-name := "supervisor"
+name := "monitoring"
 
 version := "1.0"
 
