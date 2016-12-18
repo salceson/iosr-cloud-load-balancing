@@ -1,3 +1,6 @@
+import sbtassembly.AssemblyKeys.assemblyOutputPath
+import sbtdocker.DockerKeys.dockerfile
+
 name := "frontend"
 
 version := "1.0"
@@ -23,3 +26,14 @@ libraryDependencies ++= Seq(
 
 assemblyJarName in assembly := "frontend.jar"
 mainClass := Some("iosr.frontend.FrontendApp")
+
+dockerfile in docker := {
+  val artifact = (assemblyOutputPath in assembly).value
+  val artifactTargetPath = artifact.name
+  new sbtdocker.mutable.Dockerfile {
+    from("frolvlad/alpine-oraclejdk8:slim")
+    copy(artifact, artifactTargetPath)
+    env("SUPERVISORADDRESS" -> "")
+    entryPoint("sh", "-c", "java", s"-Dsupervisor.address=$$SUPERVISORADDRESS -jar ${artifact.name}")
+  }
+}
