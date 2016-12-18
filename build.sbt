@@ -13,8 +13,8 @@ lazy val worker = (project in file("worker"))
   .settings(commonSettings)
   .dependsOn(common)
 
-lazy val gui = (project in file("gui"))
+lazy val frontend = (project in file("frontend"))
   .settings(commonSettings)
   .dependsOn(common)
 
-lazy val IOSRCloudLoadBalancing = (project in file(".")).aggregate(common, worker, gui)
+lazy val IOSRCloudLoadBalancing = (project in file(".")).aggregate(common, worker, frontend)
