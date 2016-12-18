@@ -14,6 +14,7 @@ class DockerClientActor(config: Config) extends Actor with ActorLogging {
   import DockerClientActor._
 
   private val dockerHost = config.getString("docker.host")
+  private val dockerNetwork = config.getString("docker.network")
   private val workerImageName = config.getString("docker.worker.image.name")
   private val workerContainerNamePrefix = config.getString("docker.worker.container.name.prefix")
 
@@ -29,7 +30,7 @@ class DockerClientActor(config: Config) extends Actor with ActorLogging {
 
   private def initializeDockerClient(): DockerClient = {
     val dockerClientConfig = DefaultDockerClientConfig.createDefaultConfigBuilder()
-      .withDockerHost(s"tcp://$dockerHost").build()
+      .withDockerHost(dockerHost).build()
 
     val dockerCmdExecFactory = new JerseyDockerCmdExecFactory()
       .withReadTimeout(1000)
@@ -48,9 +49,11 @@ class DockerClientActor(config: Config) extends Actor with ActorLogging {
 
   def startContainer(workerId: Int): Unit = {
     log.info(s"Starting $workerId")
+    val containerName = workerContainerNamePrefix + workerId
     val container = dockerClient.createContainerCmd(workerImageName)
-      .withName(workerContainerNamePrefix + workerId)
-      .withEnv()
+      .withName(containerName)
+      .withNetworkMode(dockerNetwork)
+      .withEnv(s"JAVA_OPTS=-Dakka.remote.netty.tcp.hostname=$containerName")
       .exec()
     dockerClient.startContainerCmd(container.getId)
   }
