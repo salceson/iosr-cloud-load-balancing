@@ -33,17 +33,20 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
 
   when(Registering) {
     case Event(RegisterWorkerAck, RunningData(supervisor, monitoring)) =>
+      log.info("Got RegisterWorkerAck")
       goto(Running) using RunningData(supervisor, monitoring)
   }
 
   when(Running)(handleRequests orElse {
     case Event(Deregister, RunningData(supervisor, _)) =>
+      log.info("Got Deregister")
       supervisor ! DeregisterWorker
       goto(Deregistering)
   })
 
   when(Deregistering)(handleRequests orElse {
     case Event(DeregisterWorkerAck, RunningData(_, monitoring)) =>
+      log.info("Got DeregisterWorkerAck")
       monitoring ! TerminateWorker
       context.system.scheduler.scheduleOnce(1 minute, self, TerminateNow)
       goto(Terminating) using EmptyData
