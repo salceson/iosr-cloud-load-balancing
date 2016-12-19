@@ -1,11 +1,12 @@
 package iosr.worker
 
-import akka.actor.{ActorPath, ActorRef, ActorSelection, Cancellable, LoggingFSM, Props, Terminated}
-import akka.routing.{ActorRefRoutee, RoundRobinRoutingLogic, Routee, Router}
+import akka.actor.{ActorPath, ActorRef, ActorSelection, Cancellable, LoggingFSM, Props}
+import akka.pattern.ask
 import iosr.Messages._
+import iosr.filters._
 import iosr.worker.WorkerActor._
 
-import scala.collection.immutable.Queue
+import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -13,89 +14,109 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
 
   import context.dispatcher
 
+  private val scaleFilterActor = context.actorOf(Props[ScaleFilter])
+  private val rotateFilterActor = context.actorOf(Props[RotateFilter])
+  private val sparkleFilterActor = context.actorOf(Props[SparkleFilter])
+  private val contrastFilterActor = context.actorOf(Props[ContrastFilter])
+  private val twirlFilterActor = context.actorOf(Props[TwirlFilter])
+
+  private val filterTimeoutDuration = 5 seconds
+  private implicit val timeout: akka.util.Timeout = filterTimeoutDuration
+
   when(Initial) {
-    case Event(Startup(supervisorPath), EmptyData) =>
+    case Event(Startup(supervisorPath, monitoringPath, delay), EmptyData) =>
       val supervisor = context.actorSelection(supervisorPath)
+      val monitoring = context.actorSelection(monitoringPath)
       supervisor ! RegisterWorker
-      val router = initRouter(5)
-      goto(Registering) using InitialData(router, supervisor)
+      monitoring ! RegisterWorker
+      val cancellable = context.system.scheduler.schedule(delay, delay, self, SendRequestsNumToMonitoring)
+      goto(Registering) using RunningData(supervisor, monitoring, cancellable, 0)
   }
 
   when(Registering) {
-    case Event(RegisterWorkerAck, InitialData(router, supervisor)) =>
-      val requestsCancellable = context.system.scheduler.schedule(10 millis, 10 millis, self, CheckForRequests)
-      goto(Running) using RequestsData(Queue.empty, requestsCancellable, router, supervisor)
-    case Event(Terminated(oldRoutee), id@InitialData(router, _)) =>
-      val newRouter = handleTerminatedRoutee(oldRoutee, router)
-      stay using id.copy(router = newRouter)
+    case Event(SendRequestsNumToMonitoring, _) =>
+      stay
+    case Event(RegisterWorkerAck, _) =>
+      log.info("Got RegisterWorkerAck")
+      goto(Running)
   }
 
   when(Running)(handleRequests orElse {
-    case Event(CheckForRequests, _) =>
-      stay
-    case Event(Terminated(oldRoutee), rd@RequestsData(_, _, router, _)) =>
-      val newRouter = handleTerminatedRoutee(oldRoutee, router)
-      stay using rd.copy(router = newRouter)
-    case Event(Deregister, RequestsData(_, _, _, supervisor)) =>
+    case Event(SendRequestsNumToMonitoring, rd@RunningData(_, monitoring, _, numOfRequests)) =>
+      monitoring ! LoadData(numOfRequests)
+      stay using rd.copy(numOfRequests = 0)
+    case Event(Deregister, RunningData(supervisor, _, cancellable, _)) =>
+      log.info("Got Deregister")
+      cancellable.cancel()
       supervisor ! DeregisterWorker
       goto(Deregistering)
   })
 
-  when(DeregisteringWithRequests)(handleRequests orElse {
-    case Event(CheckForRequests, RequestsData(_, requestsCancellable, _, _)) =>
-      requestsCancellable.cancel()
-      stay using EmptyData
-    case Event(Terminated(oldRoutee), rd@RequestsData(_, _, router, _)) =>
-      val newRouter = handleTerminatedRoutee(oldRoutee, router)
-      stay using rd.copy(router = newRouter)
-//    case Event(DeregisterWorkerAck, rd@RequestsData()
-
+  when(Deregistering)(handleRequests orElse {
+    case Event(SendRequestsNumToMonitoring, _) =>
+      stay
+    case Event(DeregisterWorkerAck, _) =>
+      log.info("Got DeregisterWorkerAck")
+      context.system.scheduler.scheduleOnce(1 minute, self, TerminateNow)
+      goto(Terminating)
   })
 
-//  when(Deregistering) {
-//    case Event(DeregisterWorkerAck, _) =>
-//
-//  }
-
   when(Terminating) {
-    case Event(TerminateNow, EmptyData) =>
+    case Event(SendRequestsNumToMonitoring, _) =>
+      stay
+    case Event(TerminateNow, RunningData(_, monitoring, _, _)) =>
+      monitoring ! TerminateWorker
       context.system.terminate()
       stop()
   }
 
   startWith(Initial, EmptyData)
 
-  private def handleDeregisteringAck: StateFunction = {
-    case Event(DeregisterWorkerAck, _) =>
-      context.system.scheduler.scheduleOnce(1 second, self, TerminateNow)
-      goto(Terminating)
-  }
-
   private def handleRequests: StateFunction = {
-    case Event(r: Request, rd@RequestsData(requestsWithActors, _, _, _)) =>
+    case Event(request: Request, rd: RunningData) =>
       val senderActor = sender()
-      stay using rd.copy(requestsWithActors = requestsWithActors.enqueue((r, senderActor)))
-    case Event(CheckForRequests, rd@RequestsData(requestsWithActors, _, router, _)) if requestsWithActors.nonEmpty =>
-      val ((request, actor), newQueue) = requestsWithActors.dequeue
-      router.route(request, actor)
-      stay using rd.copy(requestsWithActors = newQueue)
+      log.info("Got request")
+      handleRequest(request, senderActor)
+      stay using rd.copy(numOfRequests = rd.numOfRequests + 1)
   }
 
-  private def handleTerminatedRoutee(routee: ActorRef, router: Router) = {
-    val routerWithRemovedTerminatedRoutee = router.removeRoutee(routee)
-    val newRoutee = spawnRoutee()
-    routerWithRemovedTerminatedRoutee.addRoutee(newRoutee)
-  }
-
-  private def initRouter(numberOfRoutees: Int) = {
-    val routees = Vector.fill(numberOfRoutees)(spawnRoutee())
-    Router(RoundRobinRoutingLogic(), routees)
-  }
-
-  private def spawnRoutee(): Routee = {
-    val routeeActor = context.actorOf(Props[FilterProcessor])
-    context watch routeeActor
-    ActorRefRoutee(routeeActor)
+  private def handleRequest(request: Request, senderActor: ActorRef): Unit = {
+    val id = request.id
+    val imageBytes = request.image
+    val operationsParams = request.operationsParams
+    val result = operationsParams.foldLeft[Array[Byte]](imageBytes) {
+      case (image, scaleParams: ScaleParams) =>
+        val response = Await.result(
+          scaleFilterActor ? ScaleCommand(image, scaleParams),
+          filterTimeoutDuration
+        )
+        response.asInstanceOf[FilterDone].image
+      case (image, rotateParams: RotateParams) =>
+        val response = Await.result(
+          rotateFilterActor ? RotateCommand(image, rotateParams),
+          filterTimeoutDuration
+        )
+        response.asInstanceOf[FilterDone].image
+      case (image, sparkleParams: SparkleParams) =>
+        val response = Await.result(
+          sparkleFilterActor ? SparkleCommand(image, sparkleParams),
+          filterTimeoutDuration
+        )
+        response.asInstanceOf[FilterDone].image
+      case (image, contrastParams: ContrastParams) =>
+        val response = Await.result(
+          contrastFilterActor ? ContrastCommand(image, contrastParams),
+          filterTimeoutDuration
+        )
+        response.asInstanceOf[FilterDone].image
+      case (image, twirlParams: TwirlParams) =>
+        val response = Await.result(
+          twirlFilterActor ? TwirlCommand(image, twirlParams),
+          filterTimeoutDuration
+        )
+        response.asInstanceOf[FilterDone].image
+    }
+    senderActor ! Response(id, result)
   }
 }
 
@@ -107,18 +128,10 @@ object WorkerActor {
 
   case object EmptyData extends WorkerData
 
-  case class InitialData(router: Router, supervisor: ActorSelection) extends WorkerData
-
-  case class RequestsData(requestsWithActors: Queue[(Request, ActorRef)],
-                          requestsCancellable: Cancellable,
-                          router: Router,
-                          supervisor: ActorSelection)
-    extends WorkerData
-
-  case class DeregisteredRequestsData(requestsWithActors: Queue[(Request, ActorRef)],
-                                      requestsCancellable: Cancellable,
-                                      router: Router,
-                                      supervisor: ActorSelection)
+  case class RunningData(supervisor: ActorSelection,
+                         monitoring: ActorSelection,
+                         loadInfoCancellable: Cancellable,
+                         numOfRequests: Long)
     extends WorkerData
 
   //State
@@ -131,18 +144,16 @@ object WorkerActor {
 
   case object Running extends WorkerState
 
-  case object DeregisteringWithRequests extends WorkerState
-
   case object Deregistering extends WorkerState
 
   case object Terminating extends WorkerState
 
   //Messages
 
-  case class Startup(supervisorPath: ActorPath)
-
-  case object CheckForRequests
+  case class Startup(supervisorPath: ActorPath, monitoringPath: ActorPath, delay: FiniteDuration)
 
   case object TerminateNow
+
+  case object SendRequestsNumToMonitoring
 
 }

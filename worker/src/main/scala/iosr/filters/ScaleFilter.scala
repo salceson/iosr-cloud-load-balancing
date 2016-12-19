@@ -2,7 +2,7 @@ package iosr.filters
 
 import akka.actor.Actor
 import com.sksamuel.scrimage.Image
-import iosr.Messages.{Response, ScaleCommand}
+import iosr.Messages.{FilterDone, ScaleCommand}
 
 class ScaleFilter extends Actor {
   override def receive: Receive = {
@@ -19,6 +19,6 @@ class ScaleFilter extends Actor {
       } else {
         image.scaleTo(params.width, params.height)
       }
-      senderActor ! Response(scaledImage.bytes)
+      senderActor ! FilterDone(scaledImage.bytes)
   }
 }

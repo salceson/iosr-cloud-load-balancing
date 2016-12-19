@@ -4,7 +4,7 @@ import iosr.filters._
 
 object Messages {
 
-  // Filter commands
+  // Worker => Filters
 
   case class ScaleCommand(image: Array[Byte], params: ScaleParams)
 
@@ -16,11 +16,15 @@ object Messages {
 
   case class ContrastCommand(image: Array[Byte], params: ContrastParams)
 
+  // Filters => Worker
+
+  case class FilterDone(image: Array[Byte])
+
   // Request and response
 
-  case class Request(image: Array[Byte], operationsParams: List[Params])
+  case class Request(id: String, image: Array[Byte], operationsParams: List[Params])
 
-  case class Response(image: Array[Byte])
+  case class Response(id: String, image: Array[Byte])
 
   // Supervisor <=> Worker
 
@@ -32,8 +36,13 @@ object Messages {
 
   case object DeregisterWorkerAck
 
-  // LB <=> Worker
+
+  // Monitoring <=> Worker
 
   case object Deregister
+
+  case object TerminateWorker
+
+  case class LoadData(numOfRequests: Long)
 
 }

@@ -1,5 +1,12 @@
+sudo: required
+services:
+  - docker
 language: scala
 scala:
   - 2.11.8
 jdk:
   - oraclejdk8
+install:
+  - sbt clean test assembly docker
+script:
+  - ./travis_script.sh
