@@ -55,7 +55,7 @@ class MonitoringActor(config: Config, dockerClientActor: ActorRef) extends FSM[M
 
   when(Monitoring)(handleLoadData orElse {
     case Event(CheckLoad, MonitoringData(registeredWorkers, loadByWorkers)) =>
-      val a                             vgLoad = loadByWorkers.values.sum / loadByWorkers.size
+      val avgLoad = loadByWorkers.values.sum / loadByWorkers.size
       log.info(s"Current average load is: $avgLoad")
       if(avgLoad < minLoad && registeredWorkers.length > minWorkers) {
         log.info(s"Load below threshold. Removing worker${registeredWorkers.length-1}")
