@@ -4,6 +4,9 @@ import akka.actor.{ActorPath, ActorSystem, Props}
 import com.typesafe.config.ConfigFactory
 import iosr.worker.WorkerActor.Startup
 
+import scala.concurrent.duration._
+import scala.language.postfixOps
+
 object WorkerApp extends App {
   val config = ConfigFactory.load()
   val system = ActorSystem("WorkerApp", config)
@@ -16,5 +19,7 @@ object WorkerApp extends App {
   val monitoringAddress = config.getString("monitoring.address")
   val monitoringPath = ActorPath.fromString(s"akka.tcp://Monitoring@$monitoringAddress/user/monitoringActor")
 
-  workerActor ! Startup(supervisorPath, monitoringPath)
+  val delay = config.getInt("monitoring.delay") seconds
+
+  workerActor ! Startup(supervisorPath, monitoringPath, delay)
 }

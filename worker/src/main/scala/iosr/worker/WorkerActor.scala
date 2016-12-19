@@ -1,6 +1,6 @@
 package iosr.worker
 
-import akka.actor.{ActorPath, ActorRef, ActorSelection, LoggingFSM, Props}
+import akka.actor.{ActorPath, ActorRef, ActorSelection, Cancellable, LoggingFSM, Props}
 import akka.pattern.ask
 import iosr.Messages._
 import iosr.filters._
@@ -24,36 +24,47 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
   private implicit val timeout: akka.util.Timeout = filterTimeoutDuration
 
   when(Initial) {
-    case Event(Startup(supervisorPath, monitoringPath), EmptyData) =>
+    case Event(Startup(supervisorPath, monitoringPath, delay), EmptyData) =>
       val supervisor = context.actorSelection(supervisorPath)
       val monitoring = context.actorSelection(monitoringPath)
       supervisor ! RegisterWorker
       monitoring ! RegisterWorker
-      goto(Registering) using RunningData(supervisor, monitoring)
+      val cancellable = context.system.scheduler.schedule(delay, delay, self, SendRequestsNumToMonitoring)
+      goto(Registering) using RunningData(supervisor, monitoring, cancellable, 0)
   }
 
   when(Registering) {
-    case Event(RegisterWorkerAck, RunningData(supervisor, monitoring)) =>
+    case Event(SendRequestsNumToMonitoring, _) =>
+      stay
+    case Event(RegisterWorkerAck, _) =>
       log.info("Got RegisterWorkerAck")
-      goto(Running) using RunningData(supervisor, monitoring)
+      goto(Running)
   }
 
   when(Running)(handleRequests orElse {
-    case Event(Deregister, RunningData(supervisor, _)) =>
+    case Event(SendRequestsNumToMonitoring, rd@RunningData(_, monitoring, _, numOfRequests)) =>
+      monitoring ! LoadData(numOfRequests)
+      stay using rd.copy(numOfRequests = 0)
+    case Event(Deregister, RunningData(supervisor, _, cancellable, _)) =>
       log.info("Got Deregister")
+      cancellable.cancel()
       supervisor ! DeregisterWorker
       goto(Deregistering)
   })
 
   when(Deregistering)(handleRequests orElse {
-    case Event(DeregisterWorkerAck, RunningData(_, monitoring)) =>
+    case Event(SendRequestsNumToMonitoring, _) =>
+      stay
+    case Event(DeregisterWorkerAck, _) =>
       log.info("Got DeregisterWorkerAck")
       context.system.scheduler.scheduleOnce(1 minute, self, TerminateNow)
       goto(Terminating)
   })
 
   when(Terminating) {
-    case Event(TerminateNow, RunningData(_, monitoring)) =>
+    case Event(SendRequestsNumToMonitoring, _) =>
+      stay
+    case Event(TerminateNow, RunningData(_, monitoring, _, _)) =>
       monitoring ! TerminateWorker
       context.system.terminate()
       stop()
@@ -62,10 +73,10 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
   startWith(Initial, EmptyData)
 
   private def handleRequests: StateFunction = {
-    case Event(request: Request, _) =>
+    case Event(request: Request, rd: RunningData) =>
       val senderActor = sender()
       handleRequest(request, senderActor)
-      stay
+      stay using rd.copy(numOfRequests = rd.numOfRequests + 1)
   }
 
   private def handleRequest(request: Request, senderActor: ActorRef): Unit = {
@@ -116,7 +127,11 @@ object WorkerActor {
 
   case object EmptyData extends WorkerData
 
-  case class RunningData(supervisor: ActorSelection, monitoring: ActorSelection) extends WorkerData
+  case class RunningData(supervisor: ActorSelection,
+                         monitoring: ActorSelection,
+                         loadInfoCancellable: Cancellable,
+                         numOfRequests: Long)
+    extends WorkerData
 
   //State
 
@@ -134,8 +149,10 @@ object WorkerActor {
 
   //Messages
 
-  case class Startup(supervisorPath: ActorPath, monitoringPath: ActorPath)
+  case class Startup(supervisorPath: ActorPath, monitoringPath: ActorPath, delay: FiniteDuration)
 
   case object TerminateNow
+
+  case object SendRequestsNumToMonitoring
 
 }

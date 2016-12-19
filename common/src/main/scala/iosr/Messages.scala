@@ -16,6 +16,10 @@ object Messages {
 
   case class ContrastCommand(image: Array[Byte], params: ContrastParams)
 
+  // Filters => Worker
+
+  case class FilterDone(image: Array[Byte])
+
   // Request and response
 
   case class Request(id: String, image: Array[Byte], operationsParams: List[Params])
@@ -32,18 +36,13 @@ object Messages {
 
   case object DeregisterWorkerAck
 
-  // LB <=> Worker
-
-  case object Deregister
 
   // Monitoring <=> Worker
+
+  case object Deregister
 
   case object TerminateWorker
 
   case class LoadData(numOfRequests: Long)
-
-  // Filters => Worker
-
-  case class FilterDone(image: Array[Byte])
 
 }
