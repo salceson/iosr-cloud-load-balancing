@@ -24,7 +24,8 @@ dockerfile in docker := {
     from("frolvlad/alpine-oraclejdk8:slim")
     copy(artifact, artifactTargetPath)
     env("FRONTENDADDRESS" -> "frontend:3000")
+    env("SUPERVISORADDRESS" -> "supervisor:6000")
     entryPoint("sh", "-c",
-      s"java -Dfrontend.address=$$FRONTENDADDRESS -Dakka.remote.netty.tcp.hostname=tester -jar ${artifact.name}")
+      s"java -Dsupervisor.address=$$SUPERVISORADDRESS -Dfrontend.address=$$FRONTENDADDRESS -Dakka.remote.netty.tcp.hostname=tester -jar ${artifact.name}")
   }
 }

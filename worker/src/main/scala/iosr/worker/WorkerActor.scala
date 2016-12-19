@@ -75,6 +75,7 @@ class WorkerActor extends LoggingFSM[WorkerState, WorkerData] {
   private def handleRequests: StateFunction = {
     case Event(request: Request, rd: RunningData) =>
       val senderActor = sender()
+      log.info("Got request")
       handleRequest(request, senderActor)
       stay using rd.copy(numOfRequests = rd.numOfRequests + 1)
   }

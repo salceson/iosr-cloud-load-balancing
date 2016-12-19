@@ -39,6 +39,7 @@ lazy val tester = (project in file("tester"))
   .settings(commonSettings)
   .settings(commonDockerSettings)
   .enablePlugins(DockerPlugin)
+  .dependsOn(common)
 
 lazy val IOSRCloudLoadBalancing = (project in file("."))
   .aggregate(common, worker, frontend, supervisor, monitoring, tester)
