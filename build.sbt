@@ -1,5 +1,7 @@
 import CommonSettings._
 
+organization := "iosr"
+
 name := "iosr-cloud-load-balancing"
 
 version := "1.0"
@@ -33,4 +35,10 @@ lazy val monitoring = (project in file("monitoring"))
   .enablePlugins(DockerPlugin)
   .dependsOn(common)
 
-lazy val IOSRCloudLoadBalancing = (project in file(".")).aggregate(common, worker, frontend, supervisor, monitoring)
+lazy val tester = (project in file("tester"))
+  .settings(commonSettings)
+  .settings(commonDockerSettings)
+  .enablePlugins(DockerPlugin)
+
+lazy val IOSRCloudLoadBalancing = (project in file("."))
+  .aggregate(common, worker, frontend, supervisor, monitoring, tester)

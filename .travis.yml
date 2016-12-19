@@ -9,4 +9,4 @@ jdk:
 install:
   - sbt clean test assembly docker
 script:
-  - docker network create iosr
+  - ./travis_script.sh

@@ -33,7 +33,7 @@ dockerfile in docker := {
   new sbtdocker.mutable.Dockerfile {
     from("frolvlad/alpine-oraclejdk8:slim")
     copy(artifact, artifactTargetPath)
-    env("SUPERVISORADDRESS" -> "")
+    env("SUPERVISORADDRESS" -> "supervisor:6000")
     entryPoint("sh", "-c", s"java -Dsupervisor.address=$$SUPERVISORADDRESS -jar ${artifact.name}")
   }
 }

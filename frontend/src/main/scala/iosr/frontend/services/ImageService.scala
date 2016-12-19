@@ -18,7 +18,7 @@ trait ImageService {
 class ImageServiceImpl(system: ActorSystem, config: Config) extends ImageService {
   println(system, config)
   private val supervisorAddress = config.getString("supervisor.address")
-  private val supervisorPath = ActorPath.fromString(s"akka://Supervisor@$supervisorAddress/user/supervisorActor")
+  private val supervisorPath = ActorPath.fromString(s"akka.tcp://Supervisor@$supervisorAddress/user/supervisorActor")
 
   private val imageMap = mutable.Map[String, String]()
 
