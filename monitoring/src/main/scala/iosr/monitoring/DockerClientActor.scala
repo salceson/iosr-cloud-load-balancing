@@ -1,12 +1,9 @@
 package iosr.monitoring
 
-import java.io.Closeable
-
 import akka.actor.{Actor, ActorLogging, Props}
 import com.github.dockerjava.api.DockerClient
-import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.core.{DefaultDockerClientConfig, DockerClientBuilder}
-import com.github.dockerjava.jaxrs.JerseyDockerCmdExecFactory
+import com.github.dockerjava.netty.NettyDockerCmdExecFactory
 import com.typesafe.config.Config
 
 class DockerClientActor(config: Config) extends Actor with ActorLogging {
@@ -32,11 +29,7 @@ class DockerClientActor(config: Config) extends Actor with ActorLogging {
     val dockerClientConfig = DefaultDockerClientConfig.createDefaultConfigBuilder()
       .withDockerHost(dockerHost).build()
 
-    val dockerCmdExecFactory = new JerseyDockerCmdExecFactory()
-      .withReadTimeout(1000)
-      .withConnectTimeout(1000)
-      .withMaxTotalConnections(100)
-      .withMaxPerRouteConnections(10)
+    val dockerCmdExecFactory = new NettyDockerCmdExecFactory()
 
     val dockerClient = DockerClientBuilder.getInstance(dockerClientConfig)
       .withDockerCmdExecFactory(dockerCmdExecFactory)
@@ -48,14 +41,15 @@ class DockerClientActor(config: Config) extends Actor with ActorLogging {
   }
 
   def startContainer(workerId: Int): Unit = {
-    log.info(s"Starting $workerId")
+    log.info(s"Creating container $workerId")
     val containerName = workerContainerNamePrefix + workerId
     val container = dockerClient.createContainerCmd(workerImageName)
       .withName(containerName)
       .withNetworkMode(dockerNetwork)
       .withEnv(s"WORKERADDRESS=$containerName")
       .exec()
-    dockerClient.startContainerCmd(container.getId)
+    log.info(s"Starting container $workerId")
+    dockerClient.startContainerCmd(container.getId).exec()
   }
 
   def removeContainer(workerId: Int): Unit = {

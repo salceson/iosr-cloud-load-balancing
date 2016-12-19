@@ -18,6 +18,7 @@ class MonitoringActor(config: Config, dockerClientActor: ActorRef) extends FSM[M
       dockerClientActor ! StartNewContainer(1)
       dockerClientActor ! StartNewContainer(2)
       dockerClientActor ! StartNewContainer(3)
+      Thread.sleep(10000)
       dockerClientActor ! RemoveContainer(0)
       dockerClientActor ! RemoveContainer(1)
       dockerClientActor ! RemoveContainer(2)
