@@ -14,7 +14,6 @@ class TesterActor(supervisorPath: ActorPath, image: Array[Byte]) extends Actor w
   import iosr.tester.TesterActor._
 
   context.system.scheduler.schedule(1 second, 20 seconds, self, SendRequests)
-  context.system.scheduler.scheduleOnce(1 minute, self, Terminate)
 
   override def receive: Receive = {
     case SendRequests =>
@@ -24,8 +23,6 @@ class TesterActor(supervisorPath: ActorPath, image: Array[Byte]) extends Actor w
       }
     case Response(id, _) =>
       log.info(s"Got response for $id")
-    case Terminate =>
-      context.system.terminate()
   }
 
   private def getRequest(i: Int): Request = {
@@ -44,7 +41,5 @@ object TesterActor {
     Props(classOf[TesterActor], supervisorPath, image)
 
   case object SendRequests
-
-  case object Terminate
 
 }
