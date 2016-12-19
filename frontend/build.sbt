@@ -35,6 +35,6 @@ dockerfile in docker := {
     copy(artifact, artifactTargetPath)
     env("SUPERVISORADDRESS" -> "supervisor:6000")
     expose(3000)
-    entryPoint("sh", "-c", s"java -Dsupervisor.address=$$SUPERVISORADDRESS -jar ${artifact.name}")
+    entryPoint("sh", "-c", s"java -Dakka.remote.netty.tcp.hostname=frontend -Dsupervisor.address=$$SUPERVISORADDRESS -jar ${artifact.name}")
   }
 }
