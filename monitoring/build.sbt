@@ -17,9 +17,29 @@ assemblyJarName in assembly := "monitoring.jar"
 mainClass := Some("iosr.monitoring.MonitoringApp")
 
 assemblyMergeStrategy in assembly := {
-  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
-  case PathList("reference.conf") => MergeStrategy.concat
-  case x => MergeStrategy.first
+  case x if Assembly.isConfigFile(x) =>
+    MergeStrategy.concat
+  case PathList(ps @ _*) if Assembly.isReadme(ps.last) || Assembly.isLicenseFile(ps.last) =>
+    MergeStrategy.rename
+  case PathList(ps @ _*) if Assembly.isSystemJunkFile(ps.last) =>
+    MergeStrategy.discard
+  case PathList("META-INF", xs @ _*) =>
+    (xs map {_.toLowerCase}) match {
+      case (x :: Nil) if Seq("manifest.mf", "index.list", "dependencies") contains x =>
+        MergeStrategy.discard
+      case ps @ (x :: xs) if ps.last.endsWith(".sf") || ps.last.endsWith(".dsa") || ps.last.endsWith(".rsa") =>
+        MergeStrategy.discard
+      case "maven" :: xs =>
+        MergeStrategy.discard
+      case "plexus" :: xs =>
+        MergeStrategy.discard
+      case "services" :: xs =>
+        MergeStrategy.filterDistinctLines
+      case ("spring.schemas" :: Nil) | ("spring.handlers" :: Nil) | ("spring.tooling" :: Nil) =>
+        MergeStrategy.filterDistinctLines
+      case _ => MergeStrategy.first
+    }
+  case _ => MergeStrategy.first
 }
 
 dockerfile in docker := {
